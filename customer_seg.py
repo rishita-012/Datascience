@@ -8,7 +8,7 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 import scipy.cluster.hierarchy as sch
 
 # Step 2: Load the dataset
-df = pd.read_csv(r"C:\Users\rishi\Downloads\archive\Mall_Customers.csv")
+df = pd.read_csv("Mall_Customers.csv")
 print("First 5 rows of data:")
 print(df.head())
 
