@@ -1,4 +1,6 @@
-# Step 1: Import required libraries
+# app.py
+
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,76 +9,84 @@ from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 import scipy.cluster.hierarchy as sch
 
-# Step 2: Load the dataset
-df = pd.read_csv("Mall_Customers.csv")
-print("First 5 rows of data:")
-print(df.head())
+# Title
+st.title("Customer Segmentation using Clustering")
+st.markdown("Mall Customer Segmentation using **K-Means** and **Hierarchical Clustering**")
 
-# Step 3: Select features (Age, Income, Spending Score)
+# Load dataset
+@st.cache_data
+def load_data():
+    df = pd.read_csv("data/Mall_Customers.csv")
+    return df
+
+df = load_data()
+st.subheader("First 5 Rows of Data")
+st.write(df.head())
+
+# Feature Selection
 X = df[['Age', 'Annual Income (k$)', 'Spending Score (1-100)']]
 
-# Step 4: Scale the data
+# Data Scaling
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# Step 5: Elbow Method for Optimal K
-wcss = []
-for k in range(2, 11):
-    kmeans = KMeans(n_clusters=k, random_state=42)
-    kmeans.fit(X_scaled)
-    wcss.append(kmeans.inertia_)
+# Elbow Plot
+def plot_elbow():
+    wcss = []
+    for k in range(2, 11):
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        kmeans.fit(X_scaled)
+        wcss.append(kmeans.inertia_)
+    
+    plt.figure(figsize=(6,4))
+    plt.plot(range(2, 11), wcss, marker='o')
+    plt.title("Elbow Method")
+    plt.xlabel("Number of Clusters (K)")
+    plt.ylabel("WCSS")
+    plt.grid(True)
+    st.pyplot(plt)
 
-# Plot the Elbow Curve
-plt.figure(figsize=(8, 4))
-plt.plot(range(2, 11), wcss, marker='o')
-plt.title("Elbow Method - Optimal K")
-plt.xlabel("Number of Clusters (K)")
-plt.ylabel("WCSS")
-plt.grid(True)
-plt.show()
+st.subheader("Elbow Method for Optimal K")
+plot_elbow()
 
-# Step 6: Apply K-Means Clustering (K=5 as an example)
-kmeans = KMeans(n_clusters=5, random_state=42)
-k_labels = kmeans.fit_predict(X_scaled)
+# Clustering Option
+algo = st.selectbox("Select Clustering Algorithm", ["K-Means", "Hierarchical"])
+n_clusters = st.slider("Select Number of Clusters", min_value=2, max_value=10, value=5)
 
-# Evaluation for K-Means
-sil_score_kmeans = silhouette_score(X_scaled, k_labels)
-db_index_kmeans = davies_bouldin_score(X_scaled, k_labels)
+if algo == "K-Means":
+    model = KMeans(n_clusters=n_clusters, random_state=42)
+    labels = model.fit_predict(X_scaled)
+    df['Cluster'] = labels
+    
+    # Evaluation
+    sil = silhouette_score(X_scaled, labels)
+    db = davies_bouldin_score(X_scaled, labels)
+    st.success(f"K-Means Silhouette Score: {sil:.3f}")
+    st.info(f"K-Means Davies–Bouldin Index: {db:.3f}")
 
-print("K-Means Silhouette Score:", sil_score_kmeans)
-print("K-Means Davies–Bouldin Index:", db_index_kmeans)
+elif algo == "Hierarchical":
+    model = AgglomerativeClustering(n_clusters=n_clusters)
+    labels = model.fit_predict(X_scaled)
+    df['Cluster'] = labels
+    
+    # Evaluation
+    sil = silhouette_score(X_scaled, labels)
+    db = davies_bouldin_score(X_scaled, labels)
+    st.success(f"Hierarchical Silhouette Score: {sil:.3f}")
+    st.info(f"Hierarchical Davies–Bouldin Index: {db:.3f}")
 
-# Add cluster labels to DataFrame
-df['Cluster_KMeans'] = k_labels
+    # Dendrogram
+    st.subheader("Dendrogram")
+    plt.figure(figsize=(10, 5))
+    dendro = sch.dendrogram(sch.linkage(X_scaled, method='ward'))
+    plt.title("Dendrogram")
+    plt.xlabel("Customers")
+    plt.ylabel("Euclidean Distance")
+    st.pyplot(plt)
 
-# Visualize K-Means Clusters
-sns.pairplot(df, hue='Cluster_KMeans', vars=['Age', 'Annual Income (k$)', 'Spending Score (1-100)'])
-plt.suptitle("K-Means Clustering", y=1.02)
-plt.show()
+# Visualize Clusters
+st.subheader(f"{algo} Cluster Visualization")
+sns.set(style="whitegrid")
+pair_plot = sns.pairplot(df, hue='Cluster', vars=['Age', 'Annual Income (k$)', 'Spending Score (1-100)'])
+st.pyplot(pair_plot)
 
-# Step 7: Dendrogram for Hierarchical Clustering
-plt.figure(figsize=(10, 5))
-dendrogram = sch.dendrogram(sch.linkage(X_scaled, method='ward'))
-plt.title("Dendrogram - Hierarchical Clustering")
-plt.xlabel("Customers")
-plt.ylabel("Euclidean Distance")
-plt.show()
-
-# Step 8: Apply Agglomerative (Hierarchical) Clustering (5 clusters)
-hc = AgglomerativeClustering(n_clusters=5)
-hc_labels = hc.fit_predict(X_scaled)
-
-# Evaluation for Hierarchical Clustering
-sil_score_hc = silhouette_score(X_scaled, hc_labels)
-db_index_hc = davies_bouldin_score(X_scaled, hc_labels)
-
-print("Hierarchical Silhouette Score:", sil_score_hc)
-print("Hierarchical Davies–Bouldin Index:", db_index_hc)
-
-# Add cluster labels to DataFrame
-df['Cluster_HC'] = hc_labels
-
-# Visualize Hierarchical Clusters
-sns.pairplot(df, hue='Cluster_HC', vars=['Age', 'Annual Income (k$)', 'Spending Score (1-100)'])
-plt.suptitle("Hierarchical Clustering", y=1.02)
-plt.show()
